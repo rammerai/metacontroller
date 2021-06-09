@@ -1,3 +1,4 @@
+
 function(request) {
   local statefulset = request.object,
   local labelKey = statefulset.metadata.annotations["service-per-pod-label"],
@@ -9,7 +10,7 @@ function(request) {
       apiVersion: "v1",
       kind: "Service",
       metadata: {
-        name: statefulset.metadata.name + "-" + index,
+        name: statefulset.metadata.name + "clusterip" + "-" + index,
         labels: {app: "service-per-pod"}
       },
       spec: {
@@ -27,6 +28,35 @@ function(request) {
         ]
       }
     }
+    for index in std.range(0, statefulset.spec.replicas - 1)
+  ]+
+  [
+    {
+      apiVersion: "v1",
+      kind: "Service",
+      metadata: {
+        name: statefulset.metadata.name + "lb" + "-" + index,
+        labels: {app: "service-per-pod"},
+	annotations: {
+            "networking.gke.io/load-balancer-type": "Internal"
+        }
+      },
+      spec: {
+        selector: {
+          [labelKey]: statefulset.metadata.name + "-" + index
+        },
+        ports: [
+          {
+            local parts = std.split(portnums, ":"),
+            name: "port-" + std.parseInt(parts[0]),
+            port: std.parseInt(parts[0]),
+            targetPort: std.parseInt(parts[1]),
+          }
+          for portnums in std.split(ports, ",")
+        ],
+	type: "LoadBalancer"
+      }
+    },
     for index in std.range(0, statefulset.spec.replicas - 1)
   ]
 }
